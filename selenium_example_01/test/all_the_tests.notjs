@@ -1,0 +1,98 @@
+const should = require('chai').should();
+
+const {Builder, By, until} = require('selenium-webdriver');
+const {NoSuchElementError} = require('selenium-webdriver/lib/error');
+
+describe('WonderProxy website', function () {
+  // Browser based tests tend to exceed the default timeout
+  // Set a longer timeout here which will be applied to all the tests:
+  this.timeout(10000);
+
+  describe('Home Page', function () {
+    describe('Title', function () {
+      it('should be "Localization testing with confidence - WonderProxy"', async function () {
+        await runWithDriver(async function (driver) {
+          await driver.get('https://wonderproxy.com');
+          const title = await driver.getTitle();
+          title.should.equal("Localization testing with confidence - WonderProxy");
+        });
+      });
+    });
+  });
+
+  describe('Status Page', function () {
+    describe('Title', function () {
+      it('should be "Server Status - WonderProxy"', async function () {
+        await runWithDriver(async function (driver) {
+          await driver.get('https://wonderproxy.com/servers/status');
+          const title = await driver.getTitle();
+          title.should.equal("Server Status - WonderProxy");
+        });
+      });
+    });
+
+    describe('Server status is up ', function () {
+      const serverNames = ['lansing', 'orlando','perth','knoxville'];
+      serverNames.forEach(serverName => {
+        it(`should show "up" status for ${serverName}`, async function () {
+          await runWithDriver(async function (driver) {
+            await driver.get('https://wonderproxy.com/servers/status');
+            const statusText = await getServerStatus(driver, serverName);
+            statusText.should.include('up');
+          });
+        });
+      });
+    });
+
+    describe('Server status - reused driver', function () {
+      let driver;
+      before(async () => driver = await new Builder().forBrowser('chrome').build());
+      after(async () => await driver.quit);
+
+      const serverNames = ['lansing', 'orlando','perth','knoxville'];
+      for (const serverName of serverNames) {
+        it(`should show "up" status for ${serverName}`, async function () {
+          try {
+            await driver.get('https://wonderproxy.com/servers/status');
+            const statusText = await getServerStatus(driver, serverName);
+            statusText.should.include('up');
+          } catch (e) {
+            console.log(e);
+            should.fail("Error some place")
+          }
+        });
+      }
+    });
+  });
+});
+
+async function runWithDriver(test) {
+  let driver = await new Builder().forBrowser('chrome').build();
+
+  try {
+    await test(driver);
+  } finally {
+    await driver.quit();
+  }
+}
+
+async function getServerStatus(driver, serverName) {
+  try {
+    await scrollServerIntoView(driver, serverName);
+    const serverStatusElement = await driver.findElement(By.xpath(`//a[@href='/servers/${serverName}']/ancestor::li/span[5]`));
+    return await serverStatusElement.getText();
+  } catch (error) {
+    if (error instanceof NoSuchElementError) {
+      return `Unable to locate server: '${serverName}' on page`;
+    }
+    throw error;
+  }
+}
+
+async function scrollServerIntoView(driver, serverName) {
+  const serverStatusLink = await driver.findElement(By.xpath(`//a[@href='/servers/${serverName}']`));
+  await driver.executeScript("arguments[0].scrollIntoView(true);", serverStatusLink);
+}
+
+
+
